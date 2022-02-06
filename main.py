@@ -10,6 +10,8 @@ import zipfile
 import sys
 import os
 import shutil
+import hashlib
+from lib import get_download_url
 
 
 class FileDeletionException(Exception):
@@ -57,18 +59,17 @@ def main():
                 else:
                     shutil.rmtree(instance_path / path)
         print("=== Copying new files ===")
-        for path in update_config['copy']:
-            if not (instance_path / path).exists():
-                print(f"Copying {path}...")
-                if (extract_dir / path).is_file():
-                    shutil.copy(extract_dir / path, instance_path / path)
+        for path_from, path_to in update_config['copy']:
+            if not (instance_path / path_to).exists():
+                print(f"Copying {path_to}...")
+                if (extract_dir / path_from).is_file():
+                    shutil.copy(extract_dir / path_from, instance_path / path_to)
                 else:
-                    shutil.copytree(extract_dir / path, (instance_path / path))
+                    shutil.copytree(extract_dir / path_from, (instance_path / path_to))
 
     if (extract_dir / 'manifest.json').exists():
         print("=== Updating mods ===")
         manifest = json.load((extract_dir / 'manifest.json').open())
-        cf_base_url = "https://addons-ecs.forgesvc.net"
 
         if (instance_path / 'minecraft' / 'mods').exists():
             shutil.move(instance_path / 'minecraft' / 'mods', download_dir / 'mods_old')
@@ -76,37 +77,22 @@ def main():
             (download_dir / 'mods_old').mkdir(parents=True, exist_ok=True)
         (instance_path / 'minecraft' / 'mods').mkdir(parents=True, exist_ok=True)
         for mod in manifest['files']:
-            api_url = f"{cf_base_url}" \
-                f"/api/v2/addon/{mod['projectID']}" \
-                f"/file/{mod['fileID']}/download-url"
-            error = None
-            for i in range(0, 3):
-                try:
-                    print(f"Requesting {api_url}")
-                    with urlrequest.urlopen(api_url) as conn:
-                        url = urlparse.urlparse(conn.read().decode('utf-8'))
-                        download_url = urlparse.urlunparse((url.scheme,
-                                                            url.netloc,
-                                                            urlparse.quote(url.path),
-                                                            url.params,
-                                                            url.query,
-                                                            url.fragment))
-                        break
-                except HTTPError as e:
-                    error = e
-                    print(f"WARN: {e}")
-                    print("Retrying...")
-                    time.sleep(3)
-            if download_url is None:
-                raise error
 
+            download_url = mod['downloadUrl']
             file_name = os.path.basename(urlparse.urlparse(download_url).path)
+
             if (download_dir / 'mods_old' / file_name).exists():
-                print(f"{file_name} already exists.")
-                shutil.copy(download_dir / 'mods_old' / file_name, instance_path / 'minecraft' / 'mods' / file_name)
-            else:
-                print(f"Downloading from {download_url}...")
-                urlrequest.urlretrieve(download_url, instance_path / 'minecraft' / 'mods' / file_name)
+                with (download_dir / 'mods_old' / file_name).open('rb') as f:
+                    md5sum = hashlib.md5(f.read()).hexdigest()
+                if mod['md5'] == md5sum:
+                    print(f"{file_name} already exists.")
+                    shutil.copy(download_dir / 'mods_old' / file_name, instance_path / 'minecraft' / 'mods' / file_name)
+                    continue
+                else:
+                    print(f"{file_name} exists, but doesn't match the checksum!")
+
+            print(f"Downloading {file_name} from {download_url}...")
+            urlrequest.urlretrieve(download_url, instance_path / 'minecraft' / 'mods' / file_name)
 
     if (extract_dir / 'modlist.html').exists():
         shutil.copy(extract_dir / 'modlist.html', instance_path / 'modlist.html')

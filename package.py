@@ -23,13 +23,14 @@ def main():
     for mod in manifest['files']:
 
         file_path = (mod_cache / f"{mod['projectID']}_{mod['fileID']}.jar")
-        if 'md5sum' in mod:
+        if 'md5' in mod:
             if file_path.exists():
-                with file_path.open() as f:
+                with file_path.open('rb') as f:
                     md5sum = hashlib.md5(f.read()).hexdigest()
-                if md5sum == mod['md5sum']:
-                    print(f"{mod['projectID']}/{mod['fileID']} found in cache. Skipping...")
-                    continue
+                if md5sum == mod['md5']:
+                    pass
+            print(f"{mod['projectID']}/{mod['fileID']} found in cache. Skipping...")
+            continue
 
         download_url, md5sum = get_download_url(mod['projectID'], mod['fileID'])
         mod['md5'] = md5sum

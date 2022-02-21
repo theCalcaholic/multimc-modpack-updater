@@ -30,6 +30,7 @@ def main():
                 if md5sum == mod['md5']:
                     pass
             print(f"{mod['projectID']}/{mod['fileID']} found in cache. Skipping...")
+            manifest_files.append(mod)
             continue
 
         download_url, md5sum = get_download_url(mod['projectID'], mod['fileID'])
@@ -51,7 +52,7 @@ def main():
 
     manifest['files'] = manifest_files
     with (cwd / 'manifest.json').open('w') as f:
-        json.dump(manifest, f)
+        json.dump(manifest, f, indent=2)
 
 
 if __name__ == '__main__':
